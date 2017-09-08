@@ -84,68 +84,6 @@ fail:
 	Py_XDECREF(py_path_str);
 }
 
-#if defined(_WIN32)
-#define ALLOW_BUILTIN true
-#else
-#define ALLOW_BUILTIN false
-#endif
-
-#if ALLOW_BUILTIN
-static inline bool use_builtin_fallback(void)
-{
-	struct dstr env  = {0};
-	char * pythondir = obs_module_file("python");
-	bool   success   = pythondir && *pythondir;
-
-	if (success) {
-		dstr_printf(&env, "PYTHONPATH=%s", pythondir);
-#ifdef _WIN32
-		_putenv(env.array);
-#else
-		putenv(env.array);
-#endif
-		dstr_free(&env);
-	}
-
-	bfree(pythondir);
-	return success;
-}
-#else
-static inline bool use_builtin_fallback(void)
-{
-	return false;
-}
-#endif
-
-static bool is_python_on_path()
-{
-	char *pypath = getenv("PYTHONPATH");
-	if (pypath && strstr(pypath, "Python3")) {
-		return true;
-	}
-
-	char *pyhome = getenv("PYTHONHOME");
-	if (pyhome && strstr(pyhome, "Python3")) {
-		return true;
-	}
-
-	char *path = getenv("PATH");
-	if (path) {
-		char *python = strstr(path, "Python3");
-		if (python) {
-			return true;
-		}
-	}
-
-	if (use_builtin_fallback()) {
-		return true;
-	}
-
-	warn("Could not find Python install in PYTHONPATH, "
-	     "PYTHONHOME, or PATH environment variables.");
-	return false;
-}
-
 /* ========================================================================= */
 
 PyObject *               py_libobs = NULL;
@@ -257,6 +195,7 @@ static void load_plugin_scripts(const char *path)
 			info("Loading Python plugin '%s'", file);
 			load_plugin_script(short_file.array, dir.array);
 			dstr_free(&short_file);
+			dstr_free(&dir);
 		}
 		os_globfree(glob);
 	}
@@ -294,12 +233,35 @@ void python_load(void)
 {
 	da_init(plugin_scripts);
 
-	if (!is_python_on_path()) {
-		warn("Could not detect python environment variables -- "
-		     "attempting to load python anyway");
+	/* Use builtin python on windows */
+#ifdef _WIN32
+	struct dstr old_path  = {0};
+	struct dstr new_path  = {0};
+	char *      pythondir = obs_module_file("python");
+
+	dstr_copy(&old_path, getenv("PATH"));
+
+	if (pythondir && *pythondir) {
+		dstr_printf(&new_path, "PYTHONHOME=%s", pythondir);
+		_putenv(new_path.array);
+		_putenv("PYTHONPATH=");
+		_putenv("PATH=");
 	}
+#endif
 
 	Py_Initialize();
+
+#ifdef _WIN32
+	if (pythondir && *pythondir) {
+		dstr_printf(&new_path, "PATH=%s", old_path.array);
+		_putenv(new_path.array);
+	}
+
+	bfree(pythondir);
+	dstr_free(&new_path);
+	dstr_free(&old_path);
+#endif
+
 	PyEval_InitThreads();
 
 	/* ---------------------------------------------- */
