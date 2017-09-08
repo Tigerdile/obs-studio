@@ -229,8 +229,6 @@ static void *obs_lua_source_create(obs_data_t *settings, obs_source_t *source)
 	if (!have_func(create))
 		return NULL;
 
-	lock_script(ls->script);
-
 	if (!ls_push_libobs_obj(obs_data_t, settings, false))
 		goto fail;
 	if (!ls_push_libobs_obj(obs_source_t, source, false))
@@ -242,8 +240,6 @@ static void *obs_lua_source_create(obs_data_t *settings, obs_source_t *source)
 	if (lua_data_ref == LUA_REFNIL)
 		goto fail;
 
-	unlock_script(ls->script);
-
 	struct obs_lua_data *data = bmalloc(sizeof(*data));
 	data->source              = source;
 	data->ls                  = ls;
@@ -252,7 +248,6 @@ static void *obs_lua_source_create(obs_data_t *settings, obs_source_t *source)
 
 fail:
 	lua_settop(ls->script, 0);
-	unlock_script(ls->script);
 	return NULL;
 }
 
@@ -264,13 +259,9 @@ static void obs_lua_source_destroy(void *data)
 	if (!have_func(destroy))
 		return;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	call_func(destroy, 1, 0);
 	luaL_unref(ls->script, LUA_REGISTRYINDEX, ld->lua_data_ref);
-
-	unlock_script(ls->script);
 
 	bfree(data);
 }
@@ -284,16 +275,12 @@ static uint32_t obs_lua_source_get_width(void *data)
 	if (!have_func(get_width))
 		return 0;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	if (call_func(get_width, 1, 1)) {
 		if (lua_isinteger(ls->script, -1))
 			width = (uint32_t)lua_tointeger(ls->script, -1);
 		ls_pop(1);
 	}
-
-	unlock_script(ls->script);
 
 	return width;
 }
@@ -307,16 +294,12 @@ static uint32_t obs_lua_source_get_height(void *data)
 	if (!have_func(get_height))
 		return 0;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	if (call_func(get_height, 1, 1)) {
 		if (lua_isinteger(ls->script, -1))
 			height = (uint32_t)lua_tointeger(ls->script, -1);
 		ls_pop(1);
 	}
-
-	unlock_script(ls->script);
 
 	return height;
 }
@@ -328,10 +311,8 @@ static void obs_lua_source_get_defaults(void *type_data, obs_data_t *settings)
 	if (!have_func(get_defaults))
 		return;
 
-	lock_script(ls->script);
 	ls_push_libobs_obj(obs_data_t, settings, false);
 	call_func(get_defaults, 1, 0);
-	unlock_script(ls->script);
 }
 
 static obs_properties_t *obs_lua_source_get_properties(void *data)
@@ -343,15 +324,11 @@ static obs_properties_t *obs_lua_source_get_properties(void *data)
 	if (!have_func(get_properties))
 		return NULL;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	if (call_func(get_properties, 1, 1)) {
 		ls_get_libobs_obj(obs_properties_t, -1, &props);
 		ls_pop(1);
 	}
-
-	unlock_script(ls->script);
 
 	return props;
 }
@@ -364,13 +341,9 @@ static void obs_lua_source_update(void *data, obs_data_t *settings)
 	if (!have_func(update))
 		return;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	ls_push_libobs_obj(obs_data_t, settings, false);
 	call_func(update, 2, 0);
-
-	unlock_script(ls->script);
 }
 
 #define DEFINE_VOID_DATA_CALLBACK(name) \
@@ -380,10 +353,8 @@ static void obs_lua_source_update(void *data, obs_data_t *settings)
 		struct obs_lua_source *ls = ld->ls; \
 		if (!have_func(name)) \
 			return; \
-		lock_script(ls->script); \
 		ls_push_data(); \
 		call_func(name, 1, 0); \
-		unlock_script(ls->script); \
 	}
 DEFINE_VOID_DATA_CALLBACK(activate)
 DEFINE_VOID_DATA_CALLBACK(deactivate)
@@ -399,13 +370,9 @@ static void obs_lua_source_video_tick(void *data, float seconds)
 	if (!have_func(video_tick))
 		return;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	lua_pushnumber(ls->script, (double)seconds);
 	call_func(video_tick, 2, 0);
-
-	unlock_script(ls->script);
 }
 
 static void obs_lua_source_video_render(void *data, gs_effect_t *effect)
@@ -416,13 +383,9 @@ static void obs_lua_source_video_render(void *data, gs_effect_t *effect)
 	if (!have_func(video_render))
 		return;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	ls_push_libobs_obj(gs_effect_t, effect, false);
 	call_func(video_render, 2, 0);
-
-	unlock_script(ls->script);
 }
 
 static void obs_lua_source_save(void *data, obs_data_t *settings)
@@ -433,13 +396,9 @@ static void obs_lua_source_save(void *data, obs_data_t *settings)
 	if (!have_func(save))
 		return;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	ls_push_libobs_obj(obs_data_t, settings, false);
 	call_func(save, 2, 0);
-
-	unlock_script(ls->script);
 }
 
 static void obs_lua_source_load(void *data, obs_data_t *settings)
@@ -450,20 +409,14 @@ static void obs_lua_source_load(void *data, obs_data_t *settings)
 	if (!have_func(load))
 		return;
 
-	lock_script(ls->script);
-
 	ls_push_data();
 	ls_push_libobs_obj(obs_data_t, settings, false);
 	call_func(load, 2, 0);
-
-	unlock_script(ls->script);
 }
 
 static void obs_lua_source_free_type_data(void *type_data)
 {
 	struct obs_lua_source *ls = type_data;
-
-	lock_script(ls->script);
 
 #define unref(name) \
 	luaL_unref(ls->script, LUA_REGISTRYINDEX, name)
@@ -484,8 +437,6 @@ static void obs_lua_source_free_type_data(void *type_data)
 	unref(ls->func_load);
 #undef unref
 
-	unlock_script(ls->script);
-
 	bfree(ls);
 }
 
@@ -493,8 +444,6 @@ static int obs_lua_register_source(lua_State *script)
 {
 	struct obs_lua_source ls = {0};
 	struct obs_source_info info = {0};
-
-	lock_script(script);
 
 	if (!verify_args1(script, is_table))
 		goto fail;
@@ -553,7 +502,6 @@ static int obs_lua_register_source(lua_State *script)
 	obs_register_source(&info);
 
 fail:
-	unlock_script(script);
 	return 0;
 }
 

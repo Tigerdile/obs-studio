@@ -1,0 +1,83 @@
+project(lua-embedded)
+
+if(WIN32)
+	# add_definitions(-DLUA_BUILD_AS_DLL)
+	include_directories(../w32-pthreads)
+	set(lua-embedded_PLATFORM_DEPS
+		w32-pthreads)
+endif()
+
+set(lua-embedded_SOURCES
+	src/lapi.c
+	src/lauxlib.c
+	src/lbaselib.c
+	src/lbitlib.c
+	src/lcode.c
+	src/lcorolib.c
+	src/lctype.c
+	src/ldblib.c
+	src/ldebug.c
+	src/ldo.c
+	src/ldump.c
+	src/lfunc.c
+	src/lgc.c
+	src/linit.c
+	src/liolib.c
+	src/llex.c
+	src/lmathlib.c
+	src/lmem.c
+	src/loadlib.c
+	src/lobject.c
+	src/lopcodes.c
+	src/loslib.c
+	src/lparser.c
+	src/lstate.c
+	src/lstring.c
+	src/lstrlib.c
+	src/ltable.c
+	src/ltablib.c
+	src/ltm.c
+	src/lundump.c
+	src/luser.c
+	src/lutf8lib.c
+	src/lvm.c
+	src/lzio.c
+	)
+set(lua-embedded_HEADERS
+	src/lapi.h
+	src/lauxlib.h
+	src/lcode.h
+	src/lctype.h
+	src/ldebug.h
+	src/ldo.h
+	src/lfunc.h
+	src/lgc.h
+	src/llex.h
+	src/llimits.h
+	src/lmem.h
+	src/lobject.h
+	src/lopcodes.h
+	src/lparser.h
+	src/lprefix.h
+	src/lstate.h
+	src/lstring.h
+	src/ltable.h
+	src/ltm.h
+	src/lua.h
+	src/luaconf.h
+	src/lualib.h
+	src/lundump.h
+	src/lvm.h
+	src/lzio.h
+	src/lua.hpp
+	)
+
+add_library(lua-embedded STATIC
+	${lua-embedded_SOURCES}
+	${lua-embedded_HEADERS}
+	)
+target_include_directories(lua-embedded
+	PUBLIC src)
+target_link_libraries(lua-embedded
+	${lua-embedded_PLATFORM_DEPS}
+	)

@@ -6,12 +6,11 @@ include(${SWIG_USE_FILE})
 
 add_definitions(-DSWIG_TYPE_TABLE=obslua -DSWIG_LUA_INTERPRETER_NO_DEBUG)
 
-include_directories(${LUA_INCLUDE_DIR})
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 SWIG_ADD_MODULE(obslua lua obslua.i ../cstrcache.cpp ../cstrcache.h)
-SWIG_LINK_LIBRARIES(obslua obs-scripting libobs ${LUA_LIBRARIES})
+SWIG_LINK_LIBRARIES(obslua obs-scripting libobs lua-embedded ${LUA_LIBRARIES})
 
 function(install_plugin_bin_swig target additional_target)
 	if(APPLE)

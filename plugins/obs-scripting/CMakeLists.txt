@@ -8,8 +8,9 @@ endif()
 
 set(Python_ADDITIONAL_VERSIONS 3.4)
 find_package(PythonLibs QUIET 3.4)
-find_package(Lua QUIET)
 find_package(SWIG QUIET 2)
+
+set(LUA_FOUND TRUE)
 
 if(NOT SWIG_FOUND)
 	message(STATUS "Scripting plugin: SWIG not found; scripting plugin disabled")
@@ -25,12 +26,6 @@ if(NOT PYTHONLIBS_FOUND)
 	message(STATUS "Scripting plugin: Python 3 not found; Python support disabled")
 else()
 	message(STATUS "Scripting plugin: Python 3 supported")
-endif()
-
-if(NOT LUA_FOUND)
-	message(STATUS "Scripting plugin: Lua 5 not found; Lua 5 support disabled")
-else()
-	message(STATUS "Scripting plugin: Lua 5 supported")
 endif()
 
 configure_file(
@@ -74,6 +69,8 @@ set(obs-scripting_HEADERS
 	cstrcache.h
 	)
 
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/swig)
+
 if(PYTHONLIBS_FOUND)
 	set(SWIG_PY_RUNTIME swig/swigpyrun.h)
 	add_custom_command(OUTPUT ${SWIG_PY_RUNTIME}
@@ -111,8 +108,8 @@ string(REGEX REPLACE "_d" "" PYTHON_LIBRARIES "${PYTHON_LIBRARIES}")
 
 target_link_libraries(obs-scripting
 	libobs
+	lua-embedded
 	${PYTHON_LIBRARIES}
-	${LUA_LIBRARIES}
 	${obs-scripting_PLATFORM_DEPS}
 	)
 

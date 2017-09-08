@@ -122,17 +122,6 @@ file(GLOB CURL_BIN_FILES
 	"${CURL_INCLUDE_DIR}/bin/curl*.dll"
 	)
 
-file(GLOB LUA_BIN_FILES
-	"${LUA_INCLUDE_DIR}/../../bin${_bin_suffix}/liblua*.dll"
-	"${LUA_INCLUDE_DIR}/../../bin${_bin_suffix}/lua*.dll"
-	"${LUA_INCLUDE_DIR}/../../bin/liblua*.dll"
-	"${LUA_INCLUDE_DIR}/../../bin/lua*.dll"
-	"${LUA_INCLUDE_DIR}/bin${_bin_suffix}/liblua*.dll"
-	"${LUA_INCLUDE_DIR}/bin${_bin_suffix}/lua*.dll"
-	"${LUA_INCLUDE_DIR}/bin/liblua*.dll"
-	"${LUA_INCLUDE_DIR}/bin/lua*.dll"
-	)
-
 file(GLOB PYTHON_BIN_FILES
 	"${PYTHON_INCLUDE_DIR}/../../bin${_bin_suffix}/python3?.dll"
 	"${PYTHON_INCLUDE_DIR}/../../bin${_bin_suffix}/python3.dll"
@@ -196,7 +185,6 @@ set(ALL_BASE_BIN_FILES
 	${FFMPEG_BIN_FILES}
 	${X264_BIN_FILES}
 	${CURL_BIN_FILES}
-	${LUA_BIN_FILES}
 	${SSL_BIN_FILES}
 	${ZLIB_BIN_FILES}
 	${PYTHON_BIN_FILES}
@@ -231,7 +219,6 @@ message(STATUS "x264 files: ${X264_BIN_FILES}")
 message(STATUS "Libfdk files: ${LIBFDK_BIN_FILES}")
 message(STATUS "Freetype files: ${FREETYPE_BIN_FILES}")
 message(STATUS "curl files: ${CURL_BIN_FILES}")
-message(STATUS "lua files: ${LUA_BIN_FILES}")
 message(STATUS "ssl files: ${SSL_BIN_FILES}")
 message(STATUS "zlib files: ${ZLIB_BIN_FILES}")
 message(STATUS "python files: ${PYTHON_BIN_FILES}")

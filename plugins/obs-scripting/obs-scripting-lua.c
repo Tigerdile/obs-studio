@@ -41,28 +41,15 @@ static char *startup_script = NULL;
 
 static void unload_plugin_script(lua_State *script)
 {
-	struct script_extra_data **pdata = lua_getextraspace(script);
-	struct script_extra_data *data = *pdata;
-
 	lua_getglobal(script, "obs_module_unload");
 	lua_pcall(script, 0, 0, 0);
-	pthread_mutex_destroy(&data->mutex);
 	lua_close(script);
-
-	bfree(data);
 }
 
 static void load_plugin_script(const char *file, const char *dir)
 {
-	struct script_extra_data *data;
-	pthread_mutexattr_t attr;
 	struct dstr str = {0};
 	int ret;
-
-	if (pthread_mutexattr_init(&attr) != 0)
-		return;
-	if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0)
-		return;
 
 	lua_State *script = luaL_newstate();
 	if (!script) {
@@ -98,18 +85,6 @@ static void load_plugin_script(const char *file, const char *dir)
 		warn("Error loading plugin '%s': %s",
 				file,
 				lua_tostring(script, -1));
-		lua_close(script);
-		return;
-	}
-
-	data = bzalloc(sizeof(*data));
-	pthread_mutex_init_value(&data->mutex);
-
-	*(struct script_extra_data **)lua_getextraspace(script) = data;
-
-	if (pthread_mutex_init(&data->mutex, &attr) != 0) {
-		warn("Unable to initialize mutex for '%s'", file);
-		bfree(data);
 		lua_close(script);
 		return;
 	}
