@@ -227,6 +227,10 @@ os.environ['PYTHONUNBUFFERED'] = '1'\n\
 sys.stdout = stdout_logger()\n\
 sys.stderr = stderr_logger()\n";
 
+#ifdef _WIN32
+static wchar_t home_path[1024] = {0};
+#endif
+
 void python_unload(void);
 
 void python_load(void)
@@ -239,23 +243,26 @@ void python_load(void)
 	struct dstr new_path  = {0};
 	char *      pythondir = obs_module_file("python");
 
-	dstr_copy(&old_path, getenv("PATH"));
-
 	if (pythondir && *pythondir) {
-		dstr_printf(&new_path, "PYTHONHOME=%s", pythondir);
-		_putenv(new_path.array);
+		os_utf8_to_wcs(pythondir, 0, home_path, 1024);
+		Py_SetPythonHome(home_path);
+# ifndef _DEBUG
+		dstr_copy(&old_path, getenv("PATH"));
 		_putenv("PYTHONPATH=");
 		_putenv("PATH=");
+# endif
 	}
 #endif
 
 	Py_Initialize();
 
 #ifdef _WIN32
+# ifdef _DEBUG
 	if (pythondir && *pythondir) {
 		dstr_printf(&new_path, "PATH=%s", old_path.array);
 		_putenv(new_path.array);
 	}
+# endif
 
 	bfree(pythondir);
 	dstr_free(&new_path);

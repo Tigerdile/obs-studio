@@ -5,7 +5,7 @@ void lua_lock_init_(lua_State *L)
 {
 	pthread_mutexattr_t attr;
 
-	L->mutex = PTHREAD_MUTEX_INITIALIZER;
+	L->mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 
 	pthread_mutexattr_init(&attr);
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
