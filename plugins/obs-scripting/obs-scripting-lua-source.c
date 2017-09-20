@@ -59,10 +59,7 @@ static inline int get_table_int_(lua_State *script, int idx,
 
 	lua_pushstring(script, name);
 	lua_gettable(script, idx - 1);
-	if (!lua_isinteger(script, -1))
-		warn("%s: no item '%s' of type %s", func, name, "integer");
-	else
-		val = (int)lua_tointeger(script, -1);
+	val = (int)lua_tointeger(script, -1);
 	lua_pop(script, 1);
 
 	return val;
@@ -277,8 +274,7 @@ static uint32_t obs_lua_source_get_width(void *data)
 
 	ls_push_data();
 	if (call_func(get_width, 1, 1)) {
-		if (lua_isinteger(ls->script, -1))
-			width = (uint32_t)lua_tointeger(ls->script, -1);
+		width = (uint32_t)lua_tointeger(ls->script, -1);
 		ls_pop(1);
 	}
 
@@ -296,8 +292,7 @@ static uint32_t obs_lua_source_get_height(void *data)
 
 	ls_push_data();
 	if (call_func(get_height, 1, 1)) {
-		if (lua_isinteger(ls->script, -1))
-			height = (uint32_t)lua_tointeger(ls->script, -1);
+		height = (uint32_t)lua_tointeger(ls->script, -1);
 		ls_pop(1);
 	}
 

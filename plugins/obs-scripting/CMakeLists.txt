@@ -7,25 +7,32 @@ if(MSVC)
 endif()
 
 set(Python_ADDITIONAL_VERSIONS 3.4)
-find_package(PythonLibs QUIET 3.4)
+# find_package(PythonLibs QUIET 3.4)
+find_package(Luajit QUIET)
 find_package(SWIG QUIET 2)
-
-set(LUA_FOUND TRUE)
 
 if(NOT SWIG_FOUND)
 	message(STATUS "Scripting plugin: SWIG not found; scripting plugin disabled")
 	return()
 endif()
 
-if(NOT PYTHONLIBS_FOUND AND NOT LUA_FOUND)
-	message(STATUS "Scripting plugin: Neither Python 3 nor Lua 5 was found; scripting plugin disabled")
+if(NOT PYTHONLIBS_FOUND AND NOT LUAJIT_FOUND)
+	message(STATUS "Scripting plugin: Neither Python 3 nor Luajit was found; scripting plugin disabled")
 	return()
 endif()
 
 if(NOT PYTHONLIBS_FOUND)
 	message(STATUS "Scripting plugin: Python 3 not found; Python support disabled")
+	set(PYTHONLIBS_FOUND FALSE)
 else()
 	message(STATUS "Scripting plugin: Python 3 supported")
+endif()
+
+if(NOT LUAJIT_FOUND)
+	message(STATUS "Scripting plugin: Luajit not found; Luajit support disabled")
+	set(LUAJIT_FOUND FALSE)
+else()
+	message(STATUS "Scripting plugin: Luajit supported")
 endif()
 
 configure_file(
@@ -38,7 +45,7 @@ include_directories(${CMAKE_SOURCE_DIR}/libobs)
 include_directories(${PYTHON_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${LUA_INCLUDE_DIR})
+include_directories(${LUAJIT_INCLUDE_DIR})
 
 if(PYTHONLIBS_FOUND)
 	set(obs-scripting-python_SOURCES
@@ -50,7 +57,7 @@ if(PYTHONLIBS_FOUND)
 		)
 endif()
 
-if(LUA_FOUND)
+if(LUAJIT_FOUND)
 	set(obs-scripting-lua_SOURCES
 		obs-scripting-lua.c
 		obs-scripting-lua-source.c
@@ -82,7 +89,7 @@ if(PYTHONLIBS_FOUND)
 	set_source_files_properties(${SWIG_PY_RUNTIME} PROPERTIES GENERATED TRUE)
 endif()
 
-if(LUA_FOUND)
+if(LUAJIT_FOUND)
 	set(SWIG_LUA_RUNTIME swig/swigluarun.h)
 	add_custom_command(OUTPUT ${SWIG_LUA_RUNTIME}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -108,7 +115,7 @@ string(REGEX REPLACE "_d" "" PYTHON_LIBRARIES "${PYTHON_LIBRARIES}")
 
 target_link_libraries(obs-scripting
 	libobs
-	lua-embedded
+	${LUAJIT_LIBRARIES}
 	${PYTHON_LIBRARIES}
 	${obs-scripting_PLATFORM_DEPS}
 	)
@@ -117,7 +124,7 @@ if(PYTHONLIBS_FOUND)
 	add_subdirectory(obspython)
 endif()
 
-if(LUA_FOUND)
+if(LUAJIT_FOUND)
 	add_subdirectory(obslua)
 endif()
 

@@ -96,33 +96,29 @@ static void load_plugin_script(const char *file, const char *dir)
 		goto fail;
 	}
 
-	ret = lua_getglobal(script, "obs_module_load");
-	if (ret != 0) {
-		if (lua_pcall(script, 0, LUA_MULTRET, 0) != 0) {
-			warn("Error calling obs_module_Load for '%s': %s",
-					file,
-					lua_tostring(script, -1));
-		}
+	lua_getglobal(script, "obs_module_load");
 
-		ret = lua_gettop(script);
-		if (ret == 1 && lua_isboolean(script, -1)) {
-			bool success = lua_toboolean(script, -1);
-			lua_pop(script, 1);
-
-			if (!success) {
-				goto fail;
-			}
-		} else if (ret > 1) {
-			lua_settop(script, 0);
-		}
-	} else {
-		lua_pop(script, 1);
+	if (lua_pcall(script, 0, LUA_MULTRET, 0) != 0) {
+		warn("Error calling obs_module_Load for '%s': %s",
+				file,
+				lua_tostring(script, -1));
 	}
 
+	ret = lua_gettop(script);
+	if (ret == 1 && lua_isboolean(script, -1)) {
+		bool success = lua_toboolean(script, -1);
+
+		if (!success) {
+			goto fail;
+		}
+	}
+
+	lua_settop(script, 0);
 	da_push_back(plugin_scripts, &script);
 	return;
 
 fail:
+	lua_settop(script, 0);
 	unload_plugin_script(script);
 }
 

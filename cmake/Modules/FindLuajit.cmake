@@ -1,16 +1,16 @@
 # Once done these will be defined:
 #
-#  LUA_FOUND
-#  LUA_INCLUDE_DIRS
-#  LUA_LIBRARIES
+#  LUAJIT_FOUND
+#  LUAJIT_INCLUDE_DIRS
+#  LUAJIT_LIBRARIES
 #
 # For use in OBS: 
 #
-#  LUA_INCLUDE_DIR
+#  LUAJIT_INCLUDE_DIR
 
 find_package(PkgConfig QUIET)
 if (PKG_CONFIG_FOUND)
-	pkg_check_modules(_LUA QUIET LUA>=5.2)
+	pkg_check_modules(_LUAJIT QUIET LUAJIT)
 ENDIF()
 
 IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -19,35 +19,35 @@ ELSE()
 	SET(_LIB_SUFFIX 32)
 ENDIF()
 
-FIND_PATH(LUA_INCLUDE_DIR
+FIND_PATH(LUAJIT_INCLUDE_DIR
 	NAMES lua.h
 	HINTS
-		ENV LuaPath${_LIB_SUFFIX}
-		ENV LuaPath
+		ENV LuajitPath${_LIB_SUFFIX}
+		ENV LuajitPath
 		ENV DepsPath${_LIB_SUFFIX}
 		ENV DepsPath
-		${LuaPath${_LIB_SUFFIX}}
-		${LuaPath}
+		${LuajitPath${_LIB_SUFFIX}}
+		${LuajitPath}
 		${DepsPath${_LIB_SUFFIX}}
 		${DepsPath}
-		${_LUA_INCLUDE_DIRS}
+		${_LUAJIT_INCLUDE_DIRS}
 	PATHS
 		/usr/include /usr/local/include /opt/local/include /sw/include
 	PATH_SUFFIXES
-		include lua include/lua)
+		include luajit luajit/src include/luajit include/luajit/src)
 
-find_library(LUA_LIB
-	NAMES ${_LUA_LIBRARIES} lua liblua
+find_library(LUAJIT_LIB
+	NAMES ${_LUAJIT_LIBRARIES} luajit lua
 	HINTS
-		ENV LuaPath${_lib_suffix}
-		ENV LuaPath
+		ENV LuajitPath${_lib_suffix}
+		ENV LuajitPath
 		ENV DepsPath${_lib_suffix}
 		ENV DepsPath
-		${LuaPath${_lib_suffix}}
-		${LuaPath}
+		${LuajitPath${_lib_suffix}}
+		${LuajitPath}
 		${DepsPath${_lib_suffix}}
 		${DepsPath}
-		${_LUA_LIBRARY_DIRS}
+		${_LUAJIT_LIBRARY_DIRS}
 	PATHS
 		/usr/lib /usr/local/lib /opt/local/lib /sw/lib
 	PATH_SUFFIXES
@@ -59,10 +59,10 @@ find_library(LUA_LIB
 		../bin${_lib_suffix} ../bin)
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(Lua DEFAULT_MSG LUA_LIB LUA_INCLUDE_DIR)
-mark_as_advanced(LUA_INCLUDE_DIR LUA_LIB)
+find_package_handle_standard_args(Luajit DEFAULT_MSG LUAJIT_LIB LUAJIT_INCLUDE_DIR)
+mark_as_advanced(LUAJIT_INCLUDE_DIR LUAJIT_LIB)
 
-if(LUA_FOUND)
-	set(LUA_INCLUDE_DIRS ${LUA_INCLUDE_DIR})
-	set(LUA_LIBRARIES ${LUA_LIB})
+if(LUAJIT_FOUND)
+	set(LUAJIT_INCLUDE_DIRS ${LUAJIT_INCLUDE_DIR})
+	set(LUAJIT_LIBRARIES ${LUAJIT_LIB})
 endif()

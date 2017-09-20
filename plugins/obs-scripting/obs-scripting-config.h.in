@@ -16,5 +16,5 @@
 #define OFF 0
 #endif
 
-#define COMPILE_LUA    @LUA_FOUND@
+#define COMPILE_LUA    @LUAJIT_FOUND@
 #define COMPILE_PYTHON @PYTHONLIBS_FOUND@
