@@ -49,6 +49,16 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 
 	pthread_mutex_unlock(&data->sources_mutex);
 
+	pthread_mutex_lock(&obs->data.draw_callbacks_mutex);
+
+	for (size_t i = obs->data.tick_callbacks.num; i > 0; i--) {
+		struct tick_callback *callback;
+		callback = obs->data.tick_callbacks.array + (i - 1);
+		callback->tick(callback->param, seconds);
+	}
+
+	pthread_mutex_unlock(&obs->data.draw_callbacks_mutex);
+
 	return cur_time;
 }
 
