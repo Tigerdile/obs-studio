@@ -43,6 +43,10 @@ static inline void wrap_blog(int log_level, const char *message)
 %ignore obs_register_source_s(const struct obs_source_info *info, size_t size);
 %ignore obs_output_set_video(obs_output_t *output, video_t *video);
 %ignore obs_output_video(const obs_output_t *output);
+%ignore obs_add_tick_callback;
+%ignore obs_remove_tick_callback;
+%ignore obs_add_main_render_callback;
+%ignore obs_remove_main_render_callback;
 
 %include "graphics/graphics.h"
 %include "graphics/vec4.h"

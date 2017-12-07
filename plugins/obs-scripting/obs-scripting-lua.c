@@ -41,9 +41,36 @@ static char *startup_script = NULL;
 
 static void unload_plugin_script(lua_State *script)
 {
+	void *ud = NULL;
+	lua_getallocf(script, &ud);
+
+	struct lua_extra_data *data = ud;
+	pthread_mutex_lock(&data->mutex);
+
 	lua_getglobal(script, "obs_module_unload");
 	lua_pcall(script, 0, 0, 0);
+
+	pthread_mutex_unlock(&data->mutex);
+
 	lua_close(script);
+
+	if (ud) {
+		pthread_mutex_destroy(&data->mutex);
+		bfree(data);
+	}
+}
+
+static void *luaalloc(void *ud, void *ptr, size_t osize, size_t nsize)
+{
+	UNUSED_PARAMETER(ud);
+	UNUSED_PARAMETER(osize);
+
+	if (nsize == 0) {
+		bfree(ptr);
+		return NULL;
+	} else {
+		return brealloc(ptr, nsize);
+	}
 }
 
 static void load_plugin_script(const char *file, const char *dir)
@@ -51,11 +78,23 @@ static void load_plugin_script(const char *file, const char *dir)
 	struct dstr str = {0};
 	int ret;
 
-	lua_State *script = luaL_newstate();
+	struct lua_extra_data *data = bmalloc(sizeof(*data));
+	pthread_mutexattr_t attr;
+
+	pthread_mutex_init_value(&data->mutex);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+	if (pthread_mutex_init(&data->mutex, &attr) != 0) {
+		goto fail2;
+	}
+
+	lua_State *script = lua_newstate(luaalloc, data);
 	if (!script) {
 		warn("Failed to create new lua state for '%s'", file);
-		return;
+		goto fail2;
 	}
+
+	pthread_mutex_lock(&data->mutex);
 
 	luaL_openlibs(script);
 
@@ -63,8 +102,7 @@ static void load_plugin_script(const char *file, const char *dir)
 		warn("Error executing startup script for plugin '%s': %s",
 				file,
 				lua_tostring(script, -1));
-		lua_close(script);
-		return;
+		goto fail;
 	}
 
 	dstr_printf(&str, get_script_path_func, dir);
@@ -75,8 +113,7 @@ static void load_plugin_script(const char *file, const char *dir)
 		warn("Error executing startup script for plugin '%s': %s",
 				file,
 				lua_tostring(script, -1));
-		lua_close(script);
-		return;
+		goto fail;
 	}
 
 	add_lua_source_functions(script);
@@ -85,8 +122,7 @@ static void load_plugin_script(const char *file, const char *dir)
 		warn("Error loading plugin '%s': %s",
 				file,
 				lua_tostring(script, -1));
-		lua_close(script);
-		return;
+		goto fail;
 	}
 
 	if (lua_pcall(script, 0, LUA_MULTRET, 0) != 0) {
@@ -114,12 +150,21 @@ static void load_plugin_script(const char *file, const char *dir)
 	}
 
 	lua_settop(script, 0);
+	pthread_mutex_unlock(&data->mutex);
+
 	da_push_back(plugin_scripts, &script);
 	return;
 
 fail:
 	lua_settop(script, 0);
+	pthread_mutex_unlock(&data->mutex);
+
 	unload_plugin_script(script);
+	return;
+
+fail2:
+	pthread_mutex_destroy(&data->mutex);
+	bfree(data);
 }
 
 static void load_plugin_scripts(const char *path)
