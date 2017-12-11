@@ -1960,7 +1960,7 @@ void obs_add_tick_callback(
 	struct tick_callback data = {tick, param};
 
 	pthread_mutex_lock(&obs->data.draw_callbacks_mutex);
-	da_push_back(obs->data.tick_callbacks, &data);
+	da_insert(obs->data.tick_callbacks, 0, &data);
 	pthread_mutex_unlock(&obs->data.draw_callbacks_mutex);
 }
 
@@ -1988,7 +1988,7 @@ void obs_add_main_render_callback(
 	struct draw_callback data = {draw, param};
 
 	pthread_mutex_lock(&obs->data.draw_callbacks_mutex);
-	da_push_back(obs->data.draw_callbacks, &data);
+	da_insert(obs->data.draw_callbacks, 0, &data);
 	pthread_mutex_unlock(&obs->data.draw_callbacks_mutex);
 }
 

@@ -14,12 +14,17 @@
 #include <obs-properties.h>
 #include <obs-interaction.h>
 #include <callback/calldata.h>
-#include <callback/decl.h>
 #include <callback/proc.h>
 #include <callback/signal.h>
 #include <util/bmem.h>
 #include <util/base.h>
 #include "cstrcache.h"
+#include "obs-scripting-config.h"
+
+#if UI_FOUND
+#include "obs-frontend-api.h"
+#endif
+
 %}
 
 #define DEPRECATED_START
@@ -47,6 +52,11 @@ static inline void wrap_blog(int log_level, const char *message)
 %ignore obs_remove_tick_callback;
 %ignore obs_add_main_render_callback;
 %ignore obs_remove_main_render_callback;
+%ignore signal_handler_connect;
+%ignore signal_handler_disconnect;
+%ignore signal_handler_connect_global;
+%ignore signal_handler_disconnect_global;
+%ignore signal_handler_remove_current;
 
 %include "graphics/graphics.h"
 %include "graphics/vec4.h"
@@ -58,9 +68,13 @@ static inline void wrap_blog(int log_level, const char *message)
 %include "obs-properties.h"
 %include "obs-interaction.h"
 %include "obs.h"
-#include "callback/calldata.h"
-#include "callback/decl.h"
-#include "callback/proc.h"
-#include "callback/signal.h"
+%include "callback/calldata.h"
+%include "callback/proc.h"
+%include "callback/signal.h"
 %include "util/bmem.h"
 %include "util/base.h"
+%include "obs-scripting-config.h"
+
+#if UI_FOUND
+%include "obs-frontend-api.h"
+#endif

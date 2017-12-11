@@ -16,19 +16,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ******************************************************************************/
 
-/* We use release libraries even when OBS is built in debug mode, if _DEBUG is
- * not undefined on windows it will prevent it from building */
-
 #include <obs-module.h>
 #include <util/platform.h>
 
 #include "obs-scripting-config.h"
-
-#if COMPILE_PYTHON
-extern void python_load(void);
-extern void python_post_maload(void);
-extern void python_unload(void);
-#endif
 
 #if COMPILE_LUA
 extern void obs_lua_load(void);
@@ -40,10 +31,6 @@ OBS_MODULE_USE_DEFAULT_LOCALE("obs-scripting", "en-US")
 
 bool obs_module_load(void)
 {
-#if COMPILE_PYTHON
-	python_load();
-#endif
-
 #if COMPILE_LUA
 	obs_lua_load();
 #endif
@@ -51,20 +38,9 @@ bool obs_module_load(void)
 	return true;
 }
 
-#if COMPILE_PYTHON
-void obs_module_post_load(void)
-{
-	python_post_maload();
-}
-#endif
-
 void obs_module_unload()
 {
 #if COMPILE_LUA
 	obs_lua_unload();
-#endif
-
-#if COMPILE_PYTHON
-	python_unload();
 #endif
 }

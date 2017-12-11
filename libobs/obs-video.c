@@ -121,9 +121,9 @@ static inline void render_main_texture(struct obs_core_video *video,
 
 	pthread_mutex_lock(&obs->data.draw_callbacks_mutex);
 
-	for (size_t i = 0; i < obs->data.draw_callbacks.num; i++) {
+	for (size_t i = obs->data.draw_callbacks.num; i > 0; i--) {
 		struct draw_callback *callback;
-		callback = obs->data.draw_callbacks.array+i;
+		callback = obs->data.draw_callbacks.array + (i - 1);
 
 		callback->draw(callback->param,
 				video->base_width, video->base_height);

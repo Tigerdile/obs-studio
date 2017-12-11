@@ -6,33 +6,30 @@ if(MSVC)
 		w32-pthreads)
 endif()
 
-set(Python_ADDITIONAL_VERSIONS 3.4)
-# find_package(PythonLibs QUIET 3.4)
-find_package(Luajit QUIET)
+find_package(Lua QUIET 5.1)
 find_package(SWIG QUIET 2)
 
+if(DISABLE_UI OR NOT ENABLE_UI)
+	set(UI_FOUND FALSE)
+else()
+	set(UI_FOUND TRUE)
+endif()
+
 if(NOT SWIG_FOUND)
-	message(STATUS "Scripting plugin: SWIG not found; scripting plugin disabled")
+	message(STATUS "Scripting: SWIG not found; scripting disabled")
 	return()
 endif()
 
-if(NOT PYTHONLIBS_FOUND AND NOT LUAJIT_FOUND)
-	message(STATUS "Scripting plugin: Neither Python 3 nor Luajit was found; scripting plugin disabled")
+if(NOT LUA_FOUND)
+	message(STATUS "Scripting: Lua not found; Lua support disabled")
 	return()
+else()
+	message(STATUS "Scripting: Lua supported")
 endif()
 
-if(NOT PYTHONLIBS_FOUND)
-	message(STATUS "Scripting plugin: Python 3 not found; Python support disabled")
-	set(PYTHONLIBS_FOUND FALSE)
-else()
-	message(STATUS "Scripting plugin: Python 3 supported")
-endif()
-
-if(NOT LUAJIT_FOUND)
-	message(STATUS "Scripting plugin: Luajit not found; Luajit support disabled")
-	set(LUAJIT_FOUND FALSE)
-else()
-	message(STATUS "Scripting plugin: Luajit supported")
+if(UI_FOUND)
+	set(EXTRA_LIBS obs-frontend-api)
+	include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/UI/obs-frontend-api")
 endif()
 
 configure_file(
@@ -42,22 +39,11 @@ configure_file(
 include(${SWIG_USE_FILE})
 
 include_directories(${CMAKE_SOURCE_DIR}/libobs)
-include_directories(${PYTHON_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${LUAJIT_INCLUDE_DIR})
+include_directories(${LUA_INCLUDE_DIR})
 
-if(PYTHONLIBS_FOUND)
-	set(obs-scripting-python_SOURCES
-		obs-scripting-python.c
-		obs-scripting-python-source.c
-		)
-	set(obs-scripting-python_HEADERS
-		obs-scripting-python.h
-		)
-endif()
-
-if(LUAJIT_FOUND)
+if(LUA_FOUND)
 	set(obs-scripting-lua_SOURCES
 		obs-scripting-lua.c
 		obs-scripting-lua-source.c
@@ -65,6 +51,12 @@ if(LUAJIT_FOUND)
 	set(obs-scripting-lua_HEADERS
 		obs-scripting-lua.h
 		)
+	if(UI_FOUND)
+		set(obs-scripting-lua_SOURCES
+			${obs-scripting-lua_SOURCES}
+			obs-scripting-lua-frontend.c
+			)
+	endif()
 endif()
 
 set(obs-scripting_SOURCES
@@ -78,24 +70,13 @@ set(obs-scripting_HEADERS
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/swig)
 
-if(PYTHONLIBS_FOUND)
-	set(SWIG_PY_RUNTIME swig/swigpyrun.h)
-	add_custom_command(OUTPUT ${SWIG_PY_RUNTIME}
-		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-		PRE_BUILD
-		COMMAND ${SWIG_EXECUTABLE} -python -external-runtime ${SWIG_PY_RUNTIME}
-		COMMENT "Scripting plugin: Building Python SWIG interface header"
-		)
-	set_source_files_properties(${SWIG_PY_RUNTIME} PROPERTIES GENERATED TRUE)
-endif()
-
-if(LUAJIT_FOUND)
+if(LUA_FOUND)
 	set(SWIG_LUA_RUNTIME swig/swigluarun.h)
 	add_custom_command(OUTPUT ${SWIG_LUA_RUNTIME}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 		PRE_BUILD
 		COMMAND ${SWIG_EXECUTABLE} -lua -external-runtime ${SWIG_LUA_RUNTIME}
-		COMMENT "Scripting plugin: Building Lua SWIG interface header"
+		COMMENT "Scripting: Building Lua SWIG interface header"
 		)
 	set_source_files_properties(${SWIG_LUA_RUNTIME} PROPERTIES GENERATED TRUE)
 endif()
@@ -103,28 +84,19 @@ endif()
 add_library(obs-scripting SHARED
 	${obs-scripting_SOURCES}
 	${obs-scripting_HEADERS}
-	${obs-scripting-python_SOURCES}
-	${obs-scripting-python_HEADERS}
 	${obs-scripting-lua_SOURCES}
 	${obs-scripting-lua_HEADERS}
-	${SWIG_PY_RUNTIME}
 	${SWIG_LUA_RUNTIME}
 	)
 
-string(REGEX REPLACE "_d" "" PYTHON_LIBRARIES "${PYTHON_LIBRARIES}")
-
 target_link_libraries(obs-scripting
 	libobs
-	${LUAJIT_LIBRARIES}
-	${PYTHON_LIBRARIES}
+	${LUA_LIBRARIES}
+	${EXTRA_LIBS}
 	${obs-scripting_PLATFORM_DEPS}
 	)
 
-if(PYTHONLIBS_FOUND)
-	add_subdirectory(obspython)
-endif()
-
-if(LUAJIT_FOUND)
+if(LUA_FOUND)
 	add_subdirectory(obslua)
 endif()
 

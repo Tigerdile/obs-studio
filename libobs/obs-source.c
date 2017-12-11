@@ -59,6 +59,7 @@ static const char *source_signals[] = {
 	"void deactivate(ptr source)",
 	"void show(ptr source)",
 	"void hide(ptr source)",
+	"void tick(ptr source, float seconds)",
 	"void mute(ptr source, bool muted)",
 	"void push_to_mute_changed(ptr source, bool enabled)",
 	"void push_to_mute_delay(ptr source, int delay)",
@@ -1017,6 +1018,8 @@ static void async_tick(obs_source_t *source)
 void obs_source_video_tick(obs_source_t *source, float seconds)
 {
 	bool now_showing, now_active;
+	uint8_t stack[128];
+	calldata_t cd;
 
 	if (!obs_source_valid(source, "obs_source_video_tick"))
 		return;
@@ -1063,6 +1066,12 @@ void obs_source_video_tick(obs_source_t *source, float seconds)
 
 	source->async_rendered = false;
 	source->deinterlace_rendered = false;
+
+	calldata_init_fixed(&cd, stack, sizeof(stack));
+	calldata_set_ptr(&cd, "source", source);
+	calldata_set_float(&cd, "seconds", seconds);
+
+	signal_handler_signal(source->context.signals, "tick", &cd);
 }
 
 /* unless the value is 3+ hours worth of frames, this won't overflow */

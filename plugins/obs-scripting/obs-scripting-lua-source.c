@@ -5,37 +5,6 @@
 
 /* ========================================================================= */
 
-static int is_ptr(lua_State *script, int idx)
-{
-	return lua_isuserdata(script, idx) || lua_isnil(script, idx);
-}
-
-static int is_table(lua_State *script, int idx)
-{
-	return lua_istable(script, idx);
-}
-
-typedef int (*param_cb)(lua_State *script, int idx);
-
-static inline bool verify_args1_(lua_State *script,
-		param_cb param1_check,
-		const char *func)
-{
-	if (lua_gettop(script) != 1) {
-		warn("Wrong number of parameters for %s", func);
-		return false;
-	}
-	if (!param1_check(script, 1)) {
-		warn("Wrong parameter type for parameter %d of %s", 1, func);
-		return false;
-	}
-
-	return true;
-}
-
-#define verify_args1(script, param1_check) \
-	verify_args1_(script, param1_check, __FUNCTION__)
-
 static inline const char *get_table_string_(lua_State *script, int idx,
 		const char *name, const char *func)
 {
@@ -91,13 +60,13 @@ static inline void get_callback_from_table_(lua_State *script, int idx,
 #define get_callback_from_table(script, idx, name, p_reg_idx) \
 	get_callback_from_table_(script, idx, name, p_reg_idx, __FUNCTION__)
 
-static bool ls_get_libobs_obj_(lua_State * script,
-                               const char *type,
-                               int         lua_idx,
-                               void *      libobs_out,
-                               const char *id,
-                               const char *func,
-                               int         line)
+bool ls_get_libobs_obj_(lua_State * script,
+                        const char *type,
+                        int         lua_idx,
+                        void *      libobs_out,
+                        const char *id,
+                        const char *func,
+                        int         line)
 {
 	swig_type_info *info = SWIG_TypeQuery(script, type);
 	if (info == NULL) {
@@ -129,13 +98,13 @@ static bool ls_get_libobs_obj_(lua_State * script,
 	ls_get_libobs_obj_(ls->script, #type " *", lua_index, obs_obj, \
 			ls->id, __FUNCTION__, __LINE__)
 
-static bool ls_push_libobs_obj_(lua_State * script,
-                                const char *type,
-                                void *      libobs_in,
-                                bool        ownership,
-                                const char *id,
-                                const char *func,
-                                int         line)
+bool ls_push_libobs_obj_(lua_State * script,
+                         const char *type,
+                         void *      libobs_in,
+                         bool        ownership,
+                         const char *id,
+                         const char *func,
+                         int         line)
 {
 	swig_type_info *info = SWIG_TypeQuery(script, type);
 	if (info == NULL) {
@@ -185,31 +154,11 @@ struct obs_lua_data {
 	int                    lua_data_ref;
 };
 
-static inline bool call_func_(lua_State *script,
-		int reg_idx, int args, int rets,
-		const char *func, const char *display_name)
-{
-	if (reg_idx == LUA_REFNIL)
-		return false;
-
-	lua_rawgeti(script, LUA_REGISTRYINDEX, reg_idx);
-	lua_insert(script, -1 - args);
-
-	if (lua_pcall(script, args, rets, 0) != 0) {
-		warn("Failed to call %s for %s: %s", func, display_name,
-				lua_tostring(script, -1));
-		lua_pop(script, 1);
-		return false;
-	}
-
-	return true;
-}
-
-#define have_func(name) \
-	(ls->func_ ## name != LUA_REFNIL)
 #define call_func(name, args, rets) \
 	call_func_(ls->script, ls->func_ ## name, args, rets, #name, \
 			ls->display_name)
+#define have_func(name) \
+	(ls->func_ ## name != LUA_REFNIL)
 #define ls_push_data() \
 	lua_rawgeti(ls->script, LUA_REGISTRYINDEX, ld->lua_data_ref)
 #define ls_pop(count) \
@@ -556,8 +505,6 @@ fail:
 void add_lua_source_functions(lua_State *script)
 {
 	lua_getglobal(script, "obslua");
-	if (!lua_istable(script, -1))
-		return;
 
 	lua_pushstring(script, "obs_register_source");
 	lua_pushcfunction(script, obs_lua_register_source);
