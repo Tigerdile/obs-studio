@@ -4,15 +4,9 @@
 #include <util/base.h>
 #include <util/dstr.h>
 
-#include <obs-module.h>
+#include <obs.h>
 
 /* ========================================================================= */
-
-#if _WIN32
-# define SO_EXT "dll"
-#else
-# define SO_EXT "so"
-#endif
 
 #if ARCH_BITS == 64
 # define ARCH_DIR "64bit"
@@ -24,10 +18,7 @@ static const char *startup_script_template = "\
 for val in pairs(package.preload) do\n\
 	package.preload[val] = nil\n\
 end\n\
-local old_cpaths = package.cpath\n\
-package.cpath = \"%s/?." SO_EXT "\"\n\
 require \"obslua\"\n\
-package.cpath = old_cpaths\n\
 package.path = package.path .. \"%s\"\n";
 
 static const char *get_script_path_func = "\
@@ -35,11 +26,13 @@ function get_script_path()\n\
 	 return \"%s\"\n\
 end\n";
 
-static DARRAY(lua_State*) plugin_scripts;
 static char *startup_script = NULL;
 
 static pthread_mutex_t tick_mutex = PTHREAD_MUTEX_INITIALIZER;
-static struct lua_extra_data *first_tick_script = NULL;
+static struct obs_lua_script *first_tick_script = NULL;
+
+pthread_mutex_t detach_lua_mutex = PTHREAD_MUTEX_INITIALIZER;
+struct lua_obs_callback *detached_lua_callbacks = NULL;
 
 /* ========================================================================= */
 
@@ -47,48 +40,9 @@ static void add_hook_functions(lua_State *script);
 static int obs_lua_remove_tick_callback(lua_State *script);
 static int obs_lua_remove_main_render_callback(lua_State *script);
 
-#if UI_FOUND
+#if UI_ENABLED
 void add_lua_frontend_funcs(lua_State *script);
 #endif
-
-static void unload_plugin_script(lua_State *script)
-{
-	void *ud = NULL;
-	lua_getallocf(script, &ud);
-
-	struct lua_extra_data *data = ud;
-	pthread_mutex_lock(&data->mutex);
-
-	struct lua_obs_callback *cb = data->first_callback;
-	while (cb) {
-		struct lua_obs_callback *next = cb->next;
-		calldata_free(&cb->extra);
-		bfree(cb);
-		cb = next;
-	}
-
-	lua_getglobal(script, "script_unload");
-	lua_pcall(script, 0, 0, 0);
-
-	pthread_mutex_unlock(&data->mutex);
-
-	if (data->p_prev_next_tick) {
-		pthread_mutex_lock(&tick_mutex);
-
-		struct lua_extra_data *next = data->next_tick;
-		if (next) next->p_prev_next_tick = data->p_prev_next_tick;
-		*data->p_prev_next_tick = next;
-
-		pthread_mutex_unlock(&tick_mutex);
-	}
-
-	lua_close(script);
-
-	if (ud) {
-		pthread_mutex_destroy(&data->mutex);
-		bfree(data);
-	}
-}
 
 static void *luaalloc(void *ud, void *ptr, size_t osize, size_t nsize)
 {
@@ -103,26 +57,17 @@ static void *luaalloc(void *ud, void *ptr, size_t osize, size_t nsize)
 	}
 }
 
-static void load_plugin_script(const char *file, const char *dir)
+static bool load_lua_script(struct obs_lua_script *data)
 {
 	struct dstr str = {0};
+	bool success = false;
 	int ret;
-
-	struct lua_extra_data *data = bzalloc(sizeof(*data));
-
-	pthread_mutexattr_t attr;
-	pthread_mutexattr_init(&attr);
-	pthread_mutex_init_value(&data->mutex);
-	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-
-	if (pthread_mutex_init(&data->mutex, &attr) != 0) {
-		goto fail2;
-	}
 
 	lua_State *script = lua_newstate(luaalloc, data);
 	if (!script) {
-		warn("Failed to create new lua state for '%s'", file);
-		goto fail2;
+		warn("Failed to create new lua state for '%s'",
+				data->base.path.array);
+		goto fail;
 	}
 
 	pthread_mutex_lock(&data->mutex);
@@ -131,38 +76,38 @@ static void load_plugin_script(const char *file, const char *dir)
 
 	if (luaL_dostring(script, startup_script) != 0) {
 		warn("Error executing startup script for plugin '%s': %s",
-				file,
+				data->base.path.array,
 				lua_tostring(script, -1));
 		goto fail;
 	}
 
-	dstr_printf(&str, get_script_path_func, dir);
+	dstr_printf(&str, get_script_path_func, data->dir.array);
 	ret = luaL_dostring(script, str.array);
 	dstr_free(&str);
 
 	if (ret != 0) {
 		warn("Error executing startup script for plugin '%s': %s",
-				file,
+				data->base.path.array,
 				lua_tostring(script, -1));
 		goto fail;
 	}
 
 	add_lua_source_functions(script);
 	add_hook_functions(script);
-#if UI_FOUND
+#if UI_ENABLED
 	add_lua_frontend_funcs(script);
 #endif
 
-	if (luaL_loadfile(script, file) != 0) {
+	if (luaL_loadfile(script, data->file.array) != 0) {
 		warn("Error loading plugin '%s': %s",
-				file,
+				data->base.path.array,
 				lua_tostring(script, -1));
 		goto fail;
 	}
 
 	if (lua_pcall(script, 0, LUA_MULTRET, 0) != 0) {
 		warn("Error loading plugin '%s': %s",
-				file,
+				data->base.path.array,
 				lua_tostring(script, -1));
 		goto fail;
 	}
@@ -180,7 +125,7 @@ static void load_plugin_script(const char *file, const char *dir)
 	if (lua_isfunction(script, -1)) {
 		pthread_mutex_lock(&tick_mutex);
 
-		struct lua_extra_data *next = first_tick_script;
+		struct obs_lua_script *next = first_tick_script;
 		data->next_tick = next;
 		data->p_prev_next_tick = &first_tick_script;
 		if (next) next->p_prev_next_tick = &data->next_tick;
@@ -191,50 +136,20 @@ static void load_plugin_script(const char *file, const char *dir)
 		pthread_mutex_unlock(&tick_mutex);
 	}
 
-	lua_settop(script, 0);
 	data->script = script;
-	pthread_mutex_unlock(&data->mutex);
-
-	da_push_back(plugin_scripts, &script);
-	return;
+	success = true;
 
 fail:
-	lua_settop(script, 0);
-	pthread_mutex_unlock(&data->mutex);
-
-	unload_plugin_script(script);
-	return;
-
-fail2:
-	pthread_mutex_destroy(&data->mutex);
-	bfree(data);
-}
-
-static void load_plugin_scripts(const char *path)
-{
-	struct dstr script_search_path = {0};
-	struct os_glob_info *glob;
-
-	dstr_printf(&script_search_path, "%s/*.lua", path);
-
-	if (os_glob(script_search_path.array, 0, &glob) == 0) {
-		for (size_t i = 0; i < glob->gl_pathc; i++) {
-			const char *file  = glob->gl_pathv[i].path;
-			const char *slash = strrchr(file, '/');
-			struct dstr dir   = {0};
-
-			dstr_copy(&dir, file);
-			dstr_resize(&dir, slash ? slash + 1 - file : 0);
-
-			info("Loading Lua plugin '%s'", file);
-			load_plugin_script(file, dir.array);
-
-			dstr_free(&dir);
-		}
-		os_globfree(glob);
+	if (script) {
+		lua_settop(script, 0);
+		pthread_mutex_unlock(&data->mutex);
 	}
 
-	dstr_free(&script_search_path);
+	if (!success) {
+		lua_close(script);
+	}
+
+	return success;
 }
 
 #define ls_get_libobs_obj(type, lua_index, obs_obj) \
@@ -255,12 +170,13 @@ static void obs_lua_main_render_callback(void *priv, uint32_t cx, uint32_t cy)
 	lua_State *script = cb->script;
 
 	if (cb->remove)
-		obs_remove_main_render_callback(obs_lua_main_render_callback, cb);
+		obs_remove_main_render_callback(obs_lua_main_render_callback,
+				cb);
 
 	lock_script(script);
 
 	if (cb->remove) {
-		remove_lua_obs_callback(cb);
+		free_lua_obs_callback(cb);
 	} else {
 		lua_pushinteger(script, (lua_Integer)cx);
 		lua_pushinteger(script, (lua_Integer)cy);
@@ -276,7 +192,7 @@ static int obs_lua_remove_main_render_callback(lua_State *script)
 		return 0;
 
 	struct lua_obs_callback *cb = find_lua_obs_callback(script, 1);
-	if (cb) cb->remove = true;
+	if (cb) remove_lua_obs_callback(cb);
 	return 0;
 }
 
@@ -311,7 +227,7 @@ static void calldata_signal_callback(void *priv, calldata_t *cd)
 	lock_script(script);
 
 	if (cb->remove) {
-		remove_lua_obs_callback(cb);
+		free_lua_obs_callback(cb);
 	} else {
 		ls_push_libobs_obj(calldata_t, cd, false);
 		call_func(calldata_signal_callback, 1, 0);
@@ -356,8 +272,7 @@ static int obs_lua_signal_handler_disconnect(lua_State *script)
 		cb = find_next_lua_obs_callback(script, cb, 3);
 	}
 
-	if (cb) cb->remove = true;
-
+	if (cb) remove_lua_obs_callback(cb);
 	return 0;
 }
 
@@ -423,7 +338,7 @@ static int obs_lua_signal_handler_disconnect_global(lua_State *script)
 		return 0;
 
 	struct lua_obs_callback *cb = find_lua_obs_callback(script, 1);
-	if (cb) cb->remove = true;
+	if (cb) remove_lua_obs_callback(cb);
 	return 0;
 }
 
@@ -448,7 +363,7 @@ static int obs_lua_signal_handler_remove_current(lua_State *script)
 {
 	UNUSED_PARAMETER(script);
 	if (signal_current_cb)
-		signal_current_cb->remove = true;
+		remove_lua_obs_callback(signal_current_cb);
 	return 0;
 }
 
@@ -519,7 +434,7 @@ static void add_hook_functions(lua_State *script)
 
 static void lua_tick(void *param, float seconds)
 {
-	struct lua_extra_data *data;
+	struct obs_lua_script *data;
 
 	pthread_mutex_lock(&tick_mutex);
 	data = first_tick_script;
@@ -542,14 +457,118 @@ static void lua_tick(void *param, float seconds)
 
 /* -------------------------------------------- */
 
+bool obs_lua_script_load(obs_script_t *s)
+{
+	struct obs_lua_script *data = (struct obs_lua_script *)s;
+	if (!data->base.loaded) {
+		data->base.loaded = load_lua_script(data);
+	}
+
+	return data->base.loaded;
+}
+
+obs_script_t *obs_lua_script_create(const char *path)
+{
+	struct obs_lua_script *data = bzalloc(sizeof(*data));
+
+	data->base.type = OBS_SCRIPT_TYPE_LUA;
+	data->tick = LUA_REFNIL;
+
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init(&attr);
+	pthread_mutex_init_value(&data->mutex);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+	if (pthread_mutex_init(&data->mutex, &attr) != 0) {
+		bfree(data);
+		return NULL;
+	}
+
+	dstr_copy(&data->base.path, path);
+
+	char *slash = path && *path ? strrchr(path, '/') : NULL;
+	if (slash) {
+		slash++;
+		dstr_copy(&data->file, slash);
+		dstr_left(&data->dir, &data->base.path, slash - path);
+	} else {
+		dstr_copy(&data->file, path);
+	}
+
+	dstr_copy(&data->base.path, path);
+
+	obs_lua_script_load((obs_script_t *)data);
+	return (obs_script_t *)data;
+}
+
+void obs_lua_script_unload(obs_script_t *s)
+{
+	struct obs_lua_script *data = (struct obs_lua_script *)s;
+
+	if (!s->loaded)
+		return;
+
+	lua_State *script = data->script;
+	
+	/* ---------------------------- */
+	/* unhook tick function         */
+
+	if (data->p_prev_next_tick) {
+		pthread_mutex_lock(&tick_mutex);
+
+		struct obs_lua_script *next = data->next_tick;
+		if (next) next->p_prev_next_tick = data->p_prev_next_tick;
+		*data->p_prev_next_tick = next;
+
+		pthread_mutex_unlock(&tick_mutex);
+
+		data->p_prev_next_tick = NULL;
+		data->next_tick = NULL;
+	}
+
+	/* ---------------------------- */
+	/* call script_unload           */
+
+	pthread_mutex_lock(&data->mutex);
+
+	lua_getglobal(script, "script_unload");
+	lua_pcall(script, 0, 0, 0);
+
+	struct lua_obs_callback *cb = data->first_callback;
+	while (cb) {
+		struct lua_obs_callback *next = cb->next;
+		remove_lua_obs_callback(cb);
+		cb = next;
+	}
+
+	pthread_mutex_unlock(&data->mutex);
+
+	/* ---------------------------- */
+	/* close script                 */
+
+	lua_close(script);
+	s->loaded = false;
+}
+
+void obs_lua_script_destroy(obs_script_t *s)
+{
+	struct obs_lua_script *data = (struct obs_lua_script *)s;
+
+	if (data) {
+		pthread_mutex_destroy(&data->mutex);
+		bfree(data);
+	}
+}
+
+/* -------------------------------------------- */
+
 void obs_lua_load(void)
 {
 	struct dstr dep_paths = {0};
 	struct dstr tmp = {0};
 
-	da_init(plugin_scripts);
-
 	pthread_mutex_init(&tick_mutex, NULL);
+	pthread_mutex_init(&detach_lua_mutex, NULL);
 
 	/* ---------------------------------------------- */
 	/* Initialize Lua plugin dep script paths         */
@@ -568,41 +587,31 @@ void obs_lua_load(void)
 	/* ---------------------------------------------- */
 	/* Initialize Lua startup script                  */
 
-	char *module_path = obs_module_file(ARCH_DIR);
-	if (!module_path)
-		module_path = bstrdup("");
-
 	dstr_printf(&tmp, startup_script_template,
-			module_path,
 			dep_paths.array);
 	startup_script = tmp.array;
 
-	bfree(module_path);
 	dstr_free(&dep_paths);
-
-	/* ---------------------------------------------- */
-	/* Load Lua plugins                               */
-
-	char *builtin_script_path = obs_module_file("scripts");
-	if (builtin_script_path) {
-		load_plugin_scripts(builtin_script_path);
-		bfree(builtin_script_path);
-	}
-
-	const char **paths = obs_get_parsed_search_paths("plugin_scripts");
-	while (*paths) {
-		load_plugin_scripts(*paths);
-		paths++;
-	}
 
 	obs_add_tick_callback(lua_tick, NULL);
 }
 
 void obs_lua_unload(void)
 {
-	for (size_t i = 0; i < plugin_scripts.num; i++)
-		unload_plugin_script(plugin_scripts.array[i]);
-	da_free(plugin_scripts);
+	pthread_mutex_lock(&detach_lua_mutex);
+
+	struct lua_obs_callback *cur = detached_lua_callbacks;
+	while (cur) {
+		struct lua_obs_callback *next = cur->next;
+		just_free_lua_obs_callback(next);
+		cur = next;
+	}
+
+	pthread_mutex_unlock(&detach_lua_mutex);
+
+	/* ---------------------- */
+
 	bfree(startup_script);
 	pthread_mutex_destroy(&tick_mutex);
+	pthread_mutex_destroy(&detach_lua_mutex);
 }

@@ -9,12 +9,6 @@ endif()
 find_package(Lua QUIET 5.1)
 find_package(SWIG QUIET 2)
 
-if(DISABLE_UI OR NOT ENABLE_UI)
-	set(UI_FOUND FALSE)
-else()
-	set(UI_FOUND TRUE)
-endif()
-
 if(NOT SWIG_FOUND)
 	message(STATUS "Scripting: SWIG not found; scripting disabled")
 	return()
@@ -27,7 +21,8 @@ else()
 	message(STATUS "Scripting: Lua supported")
 endif()
 
-if(UI_FOUND)
+if(UI_ENABLED)
+	message(STATUS "test123")
 	set(EXTRA_LIBS obs-frontend-api)
 	include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/UI/obs-frontend-api")
 endif()
@@ -51,7 +46,7 @@ if(LUA_FOUND)
 	set(obs-scripting-lua_HEADERS
 		obs-scripting-lua.h
 		)
-	if(UI_FOUND)
+	if(UI_ENABLED)
 		set(obs-scripting-lua_SOURCES
 			${obs-scripting-lua_SOURCES}
 			obs-scripting-lua-frontend.c
@@ -60,11 +55,12 @@ if(LUA_FOUND)
 endif()
 
 set(obs-scripting_SOURCES
-	obs-scripting-module.c
+	obs-scripting.c
 	cstrcache.cpp
 	)
 set(obs-scripting_HEADERS
 	${CMAKE_CURRENT_BINARY_DIR}/obs-scripting-config.h
+	obs-scripting.h
 	cstrcache.h
 	)
 
@@ -100,4 +96,4 @@ if(LUA_FOUND)
 	add_subdirectory(obslua)
 endif()
 
-install_obs_plugin_with_data(obs-scripting data)
+install_obs_core(obs-scripting)

@@ -21,7 +21,7 @@
 #include "cstrcache.h"
 #include "obs-scripting-config.h"
 
-#if UI_FOUND
+#if UI_ENABLED
 #include "obs-frontend-api.h"
 #endif
 
@@ -75,6 +75,6 @@ static inline void wrap_blog(int log_level, const char *message)
 %include "util/base.h"
 %include "obs-scripting-config.h"
 
-#if UI_FOUND
+#if UI_ENABLED
 %include "obs-frontend-api.h"
 #endif

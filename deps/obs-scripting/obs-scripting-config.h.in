@@ -17,4 +17,4 @@
 #endif
 
 #define COMPILE_LUA    @LUA_FOUND@
-#define UI_FOUND       @UI_FOUND@
+#define UI_ENABLED     @UI_ENABLED@
