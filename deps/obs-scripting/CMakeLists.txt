@@ -22,7 +22,6 @@ else()
 endif()
 
 if(UI_ENABLED)
-	message(STATUS "test123")
 	set(EXTRA_LIBS obs-frontend-api)
 	include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/UI/obs-frontend-api")
 endif()

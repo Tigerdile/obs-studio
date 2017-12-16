@@ -9,10 +9,6 @@ add_definitions(-DSWIG_TYPE_TABLE=obslua -DSWIG_LUA_INTERPRETER_NO_DEBUG)
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-if(UI_ENABLED)
-	message(STATUS "test123 part 2: ${EXTRA_LIBS}")
-endif()
-
 SWIG_ADD_MODULE(obslua lua obslua.i ../cstrcache.cpp ../cstrcache.h)
 SWIG_LINK_LIBRARIES(obslua obs-scripting libobs ${LUA_LIBRARIES} ${EXTRA_LIBS})
 

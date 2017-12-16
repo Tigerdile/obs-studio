@@ -17,6 +17,7 @@
 ******************************************************************************/
 
 #include <obs.h>
+#include <util/dstr.h>
 #include <util/platform.h>
 
 #include "obs-scripting-internal.h"
@@ -30,6 +31,15 @@ extern void obs_lua_script_destroy(obs_script_t *s);
 extern void obs_lua_load(void);
 extern void obs_lua_unload(void);
 #endif
+
+static struct dstr file_filter = {0};
+
+static const char *supported_formats[] = {
+#ifdef COMPILE_LUA
+	"lua",
+#endif
+	NULL
+};
 
 bool obs_scripting_load(void)
 {
@@ -45,6 +55,12 @@ void obs_scripting_unload(void)
 #if COMPILE_LUA
 	obs_lua_unload();
 #endif
+	dstr_free(&file_filter);
+}
+
+const char **obs_scripting_supported_formats(void)
+{
+	return supported_formats;
 }
 
 static inline bool pointer_valid(const void *x, const char *name,
@@ -84,14 +100,17 @@ obs_script_t *obs_script_create(const char *path)
 	return script;
 }
 
+const char *obs_script_get_path(const obs_script_t *script)
+{
+	return ptr_valid(script) ? script->path.array : "";
+}
+
 bool obs_script_reload(obs_script_t *script)
 {
 	if (!ptr_valid(script))
 		return false;
-	if (!script->unloadable)
-		return true;
 
-	if (script->type == OBS_SCRIPT_TYPE_LUA) {
+	if (script->type == OBS_SCRIPT_LANG_LUA) {
 #if COMPILE_LUA
 		obs_lua_script_unload(script);
 		obs_lua_script_load(script);
@@ -99,11 +118,6 @@ bool obs_script_reload(obs_script_t *script)
 	}
 
 	return script->loaded;
-}
-
-bool obs_script_unloadable(const obs_script_t *script)
-{
-	return ptr_valid(script) ? script->unloadable : false;
 }
 
 bool obs_script_loaded(const obs_script_t *script)
@@ -116,7 +130,7 @@ void obs_script_destroy(obs_script_t *script)
 	if (!script)
 		return;
 
-	if (script->type == OBS_SCRIPT_TYPE_LUA) {
+	if (script->type == OBS_SCRIPT_LANG_LUA) {
 #if COMPILE_LUA
 		obs_lua_script_unload(script);
 		obs_lua_script_destroy(script);

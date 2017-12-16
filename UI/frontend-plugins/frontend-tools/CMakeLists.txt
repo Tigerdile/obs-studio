@@ -11,6 +11,8 @@ if(UNIX AND NOT APPLE)
 	include_directories(${X11_INCLUDE_DIR})
 endif()
 
+include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/obs-scripting")
+
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/frontend-tools-config.h.in"
 	"${CMAKE_BINARY_DIR}/config/frontend-tools-config.h")
@@ -21,17 +23,20 @@ set(frontend-tools_HEADERS
 	auto-scene-switcher.hpp
 	output-timer.hpp
 	tool-helpers.hpp
+	scripts.hpp
 	)
 set(frontend-tools_SOURCES
 	${frontend-tools_SOURCES}
 	auto-scene-switcher.cpp
 	frontend-tools.c
 	output-timer.cpp
+	scripts.cpp
 	)
 set(frontend-tools_UI
 	${frontend-tools_UI}
 	forms/auto-scene-switcher.ui
 	forms/output-timer.ui
+	forms/scripts.ui
 	)
 
 if(WIN32)
@@ -80,6 +85,7 @@ add_library(frontend-tools MODULE
 target_link_libraries(frontend-tools
 	${frontend-tools_PLATFORM_LIBS}
 	obs-frontend-api
+	obs-scripting
 	Qt5::Widgets
 	libobs)
 

@@ -3341,6 +3341,9 @@ void OBSBasic::ClearSceneData()
 
 	obs_enum_sources(cb, nullptr);
 
+	if (api)
+		api->on_event(OBS_FRONTEND_EVENT_SCENE_COLLECTION_CLEANUP);
+
 	disableSaving--;
 
 	blog(LOG_INFO, "All scene data cleared");

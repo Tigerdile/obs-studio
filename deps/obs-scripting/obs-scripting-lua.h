@@ -40,6 +40,9 @@ struct obs_lua_script {
 
 static inline struct obs_lua_script *get_obs_script(lua_State *script)
 {
+	if (!script)
+		return NULL;
+
 	void *ud = NULL;
 	lua_getallocf(script, &ud);
 
@@ -50,13 +53,15 @@ static inline struct obs_lua_script *get_obs_script(lua_State *script)
 static inline struct obs_lua_script *lock_script_(lua_State *script)
 {
 	struct obs_lua_script *data = get_obs_script(script);
-	pthread_mutex_lock(&data->mutex);
+	if (data)
+		pthread_mutex_lock(&data->mutex);
 	return data;
 }
 
 static inline void unlock_script_(struct obs_lua_script *data)
 {
-	pthread_mutex_unlock(&data->mutex);
+	if (data)
+		pthread_mutex_unlock(&data->mutex);
 }
 
 #define lock_script(script) \
@@ -79,17 +84,11 @@ struct lua_obs_callback {
 	calldata_t extra;
 };
 
-static inline struct lua_obs_callback *add_lua_obs_callback_internal(
-		lua_State *script, int stack_idx, bool unloadable)
+static inline struct lua_obs_callback *add_lua_obs_callback(
+		lua_State *script, int stack_idx)
 {
 	struct lua_obs_callback *cb = bzalloc(sizeof(*cb));
-
-	void *ud = NULL;
-	lua_getallocf(script, &ud);
-	struct obs_lua_script *data = ud;
-
-	if (unloadable)
-		data->base.unloadable = true;
+	struct obs_lua_script *data = get_obs_script(script);
 
 	struct lua_obs_callback *next = data->first_callback;
 	cb->next = next;
@@ -103,18 +102,6 @@ static inline struct lua_obs_callback *add_lua_obs_callback_internal(
 
 	data->first_callback = cb;
 	return cb;
-}
-
-static inline struct lua_obs_callback *add_lua_obs_callback(
-		lua_State *script, int stack_idx)
-{
-	return add_lua_obs_callback_internal(script, stack_idx, false);
-}
-
-static inline struct lua_obs_callback *add_lua_obs_perm_callback(
-		lua_State *script, int stack_idx)
-{
-	return add_lua_obs_callback_internal(script, stack_idx, true);
 }
 
 static inline struct lua_obs_callback *find_next_lua_obs_callback(
@@ -160,7 +147,10 @@ static inline void remove_lua_obs_callback(struct lua_obs_callback *cb)
 	cb->next = next;
 	if (next) next->p_prev_next = &cb->next;
 	cb->p_prev_next = &detached_lua_callbacks;
+	detached_lua_callbacks = cb;
 	pthread_mutex_unlock(&detach_lua_mutex);
+
+	cb->script = NULL;
 }
 
 static inline void just_free_lua_obs_callback(struct lua_obs_callback *cb)

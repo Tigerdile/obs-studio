@@ -494,9 +494,6 @@ static int obs_lua_register_source(lua_State *script)
 	info.get_name       = obs_lua_source_get_name;
 	info.get_defaults2  = obs_lua_source_get_defaults;
 
-	struct obs_lua_script *data = get_obs_script(script);
-	data->base.unloadable = true;
-
 	obs_register_source(&info);
 
 fail:
